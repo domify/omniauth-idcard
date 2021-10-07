@@ -5,9 +5,9 @@ require "omniauth-idcard/version"
 Gem::Specification.new do |s|
   s.name        = "omniauth-idcard"
   s.version     = Omniauth::Idcard::VERSION
-  s.authors     = ["Tarmo Talu"]
-  s.email       = ["tarmo.talu@gmail.com"]
-  s.homepage    = "http://github.com/tarmotalu/omniauth-idcard"
+  s.authors     = ["Priit Tark", "Tarmo Talu"]
+  s.email       = ["info@domify.io", "tarmo.talu@gmail.com"]
+  s.homepage    = "https://github.com/domify/omniauth-idcard"
   s.summary     = %q{OmniAuth strategy for Estonian ID-Card}
   s.description = %q{OmniAuth strategy for Estonian ID-Card}
 

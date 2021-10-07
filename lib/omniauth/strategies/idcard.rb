@@ -4,11 +4,9 @@ require 'openssl'
 module OmniAuth
   module Strategies
     class Idcard < OmniAuth::Strategies::OAuth
-
       option :name, 'idcard'
       option :logger, nil
-      # Name of variable where webserver (Apache, Nginx) will forwart client PEM certificate
-      option :cert_variable, 'SSL_CLIENT_CERT'
+      option :cert_variable, 'HTTP_X_SSL_CLIENT_S_CERT' # Name of variable from Nginx
 
       uid { @user_data['serialNumber'] }
 
@@ -24,22 +22,41 @@ module OmniAuth
         }
       end
 
+      def pem
+        @env[options.cert_variable]
+      end
+
       def request_phase
-        if @env[cert_variable] && @env[cert_variable] != ''
-          debug "Start authentication with ID-Card. Got certificate from request #{cert_variable}:"
-          debug @env[cert_variable]
+        if pem.blank?
+          debug "Could not authenticate with ID-Card. Certificate is missing."
+          return fail!(:client_certificate_missing)
+        end
 
-          @user_data = parse_client_certificate(@env[cert_variable])
-          @env['REQUEST_METHOD'] = 'GET'
-          @env['omniauth.auth'] = info
-          @env['PATH_INFO'] = "#{OmniAuth.config.path_prefix}/#{name}/callback"
+        debug "Start authentication with ID-Card. Got certificate from request #{pem}:"
 
-          debug "ID-Card request was authenticated successfully. User data: #{info.inspect}"
+        @user_data = parse_client_certificate(pem)
+        @env['REQUEST_METHOD'] = 'GET'
+        @env['omniauth.auth'] = info
+        @env['PATH_INFO'] = "#{OmniAuth.config.path_prefix}/#{name}/callback"
 
-          call_app!
-        else
-          debug "Could not authenticate with ID-Card. Certificate is missing in request variable #{cert_variable}."
-          fail!(:client_certificate_missing)
+        debug "ID-Card request was authenticated successfully. User data: #{info.inspect}"
+
+        call_app!
+      end
+
+      def callback_phase
+        fail!(:invalid_credentials)
+      end
+
+      def parse_client_certificate(data)
+        cert = OpenSSL::X509::Certificate.new(data.to_s.delete("\t"))
+        subject_dn = unescape(cert.subject.to_s).force_encoding('UTF-8')
+        debug "Subject DN: #{subject_dn}"
+
+        subject_dn.split('/').inject(Hash.new) do |memo, part|
+          item = part.split('=')
+          memo[item.first.to_s] = item.last if item.last
+          memo
         end
       end
 
@@ -55,34 +72,7 @@ module OmniAuth
       }
       end
 
-      def parse_client_certificate(data)
-        cert = OpenSSL::X509::Certificate.new(data)
-
-        # from 2011-07-01 Common Name is encoded in UTF-8
-        subject_dn = if cert.not_before.to_date >= Date.parse('2011-07-01')
-          unescape(cert.subject.to_s).force_encoding('UTF-8')
-        else
-          unescape(cert.subject.to_s).unpack("C*").pack("U*").scan(/./mu) {|s| s[0].chr }.gsub("\u0000", '')
-        end
-
-        debug "Subject DN: #{subject_dn}"
-
-        subject_dn.split('/').inject(Hash.new) do |memo, part|
-          item = part.split('=')
-          memo[item.first.to_s] = item.last if item.last
-          memo
-        end
-      end
-
-      def callback_phase
-        fail!(:invalid_credentials)
-      end
-
       private
-
-      def cert_variable
-        options[:cert_variable]
-      end
 
       def debug(message)
         options[:logger].debug("#{Time.now} #{message}") if options[:logger]
