@@ -1,5 +1,6 @@
 require 'omniauth-oauth'
 require 'openssl'
+require 'uri'
 
 module OmniAuth
   module Strategies
@@ -51,7 +52,8 @@ module OmniAuth
       end
 
       def parse_client_certificate(data)
-        cert = OpenSSL::X509::Certificate.new(data.to_s.delete("\t"))
+        data = URI.decode(data.to_s.delete("\t"))
+        cert = OpenSSL::X509::Certificate.new(data)
         subject_dn = unescape(cert.subject.to_s).force_encoding('UTF-8')
         debug "Subject DN: #{subject_dn}"
 
