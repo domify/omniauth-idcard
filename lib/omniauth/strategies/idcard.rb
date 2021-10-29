@@ -23,7 +23,9 @@ module OmniAuth
       end
 
       def pem
-        @env[options.cert_variable]
+        @pem = @env[options.cert_variable]
+        @pem = @env['HTTP_SSL_CLIENT_CERT'] if @pem.blank? # fall back to classic variable
+        @pem
       end
 
       def request_phase
