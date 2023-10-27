@@ -5,9 +5,11 @@ require 'uri'
 module OmniAuth
   module Strategies
     class Idcard < OmniAuth::Strategies::OAuth
-      option :name, 'idcard'
-      option :logger, nil
-      option :cert_variable, 'HTTP_X_SSL_CLIENT_S_CERT' # Name of variable from Nginx
+      default_options.update(
+        name: 'idcard',
+        logger: nil,
+        cert_variable: 'HTTP_X_SSL_CLIENT_S_CERT' # Name of the variable from Nginx
+      )
 
       uid { @user_data['serialNumber'] }
 
@@ -52,28 +54,27 @@ module OmniAuth
       end
 
       def parse_client_certificate(data)
-        data = URI.decode(data.to_s.delete("\t"))
+        data = URI.decode_www_form_component(data.to_s.delete("\t")) # Updated decoding method
         cert = OpenSSL::X509::Certificate.new(data)
         subject_dn = unescape(cert.subject.to_s).force_encoding('UTF-8')
         debug "Subject DN: #{subject_dn}"
 
-        subject_dn.split('/').inject(Hash.new) do |memo, part|
+        subject_dn.split('/').each_with_object(Hash.new) do |part, memo|
           item = part.split('=')
           memo[item.first.to_s] = item.last if item.last
-          memo
         end
       end
 
       def unescape(value)
-        value.gsub( /\\(?:([nevfbart\\])|0?x([0-9a-fA-F]{2})|u([0-9a-fA-F]{4}))/ ) {
-        if $3
-          ["#$3".hex ].pack('U*')
-        elsif $2
-          [$2].pack( "H2" )
-        else
-          UNESCAPES[$1]
+        value.gsub( /\\(?:([nevfbart\\])|0?x([0-9a-fA-F]{2})|u([0-9a-fA-F]{4}))/) do
+          if $3
+            ["#$3".hex ].pack('U*')
+          elsif $2
+            [$2].pack( "H2" )
+          else
+            UNESCAPES[$1]
+          end
         end
-      }
       end
 
       private
